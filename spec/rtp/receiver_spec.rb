@@ -6,22 +6,22 @@ require 'rtp/receiver'
 Thread.abort_on_exception = true
 
 describe RTP::Receiver do
-  describe "#initialize" do
-    it "sets default values for accessors" do
-      subject.transport_protocol.should == :UDP
-      subject.instance_variable_get(:@ip_address).should == '0.0.0.0'
-      subject.rtp_port.should == 6970
-      subject.rtcp_port.should == 6971
-      subject.capture_file.should be_a Tempfile
+  describe '#initialize' do
+    it 'sets default values for accessors' do
+      expect(subject.transport_protocol).to eql(:UDP)
+      expect(subject.instance_variable_get(:@ip_address)).to eql('0.0.0.0')
+      expect(subject.rtp_port).to eql(6970)
+      expect(subject.rtcp_port).to eql(6971)
+      expect(subject.capture_file).to be_a(Tempfile)
     end
 
     it "isn't running" do
-      subject.should_not be_running
+      expect(subject).to_not be_running
     end
   end
 
-  describe "#start" do
-    context "running" do
+  describe '#start' do
+    context 'running' do
       before { subject.stub(:running?).and_return true }
 
       it "doesn't try starting anything else" do
@@ -32,12 +32,12 @@ describe RTP::Receiver do
       end
     end
 
-    context "not running" do
+    context 'not running' do
       before { subject.stub(:running?).and_return false }
-      let(:packet_writer) { double "@packet_writer", :abort_on_exception= => nil }
-      let(:listener) { double "@listener", :abort_on_exception= => nil }
+      let(:packet_writer) { double '@packet_writer', :abort_on_exception= => nil }
+      let(:listener) { double '@listener', :abort_on_exception= => nil }
 
-      it "initializes the listener socket, listener thread, and packet writer" do
+      it 'initializes the listener socket, listener thread, and packet writer' do
         subject.should_receive(:start_packet_writer).and_return packet_writer
         subject.should_receive(:init_socket).with(:UDP, 6970, '0.0.0.0')
         subject.should_receive(:start_listener).and_return packet_writer
@@ -47,55 +47,55 @@ describe RTP::Receiver do
     end
   end
 
-  describe "#stop" do
-    context "running" do
+  describe '#stop' do
+    context 'running' do
       before { subject.stub(:running?).and_return true }
 
-      it "calls #stop_listener" do
+      it 'calls #stop_listener' do
         subject.should_receive(:stop_listener)
         subject.stop
       end
 
-      it "calls #stop_packet_writer" do
+      it 'calls #stop_packet_writer' do
         subject.should_receive(:stop_packet_writer)
         subject.stop
       end
     end
 
-    context "not running" do
+    context 'not running' do
       before { subject.stub(:running?).and_return false }
-      specify { subject.stop.should be_falsey }
+      specify { expect(subject.stop).to be_falsey }
     end
   end
 
-  describe "#listening?" do
-    context "@listner is nil" do
+  describe '#listening?' do
+    context '@listner is nil' do
       before { subject.instance_variable_set(:@listener, nil) }
-      specify { subject.should_not be_listening }
+      specify { expect(subject).to_not be_listening }
     end
 
-    context "@listener is not nil" do
-      let(:listener) { double "@listener", :alive? => true }
+    context '@listener is not nil' do
+      let(:listener) { double '@listener', alive?: true }
       before { subject.instance_variable_set(:@listener, listener) }
       specify { subject.should be_listening }
     end
   end
 
-  describe "#writing_packets?" do
-    context "@packet_writer is nil" do
+  describe '#writing_packets?' do
+    context '@packet_writer is nil' do
       before { subject.instance_variable_set(:@packet_writer, nil) }
       specify { subject.should_not be_writing_packets }
     end
 
-    context "@packet_writer is not nil" do
-      let(:writer) { double "@packet_writer", :alive? => true }
+    context '@packet_writer is not nil' do
+      let(:writer) { double '@packet_writer', alive?: true }
       before { subject.instance_variable_set(:@packet_writer, writer) }
       specify { subject.should be_writing_packets }
     end
   end
 
-  describe "#running?" do
-    context "listening and writing packets" do
+  describe '#running?' do
+    context 'listening and writing packets' do
       before do
         subject.stub(:listening?).and_return(true)
         subject.stub(:writing_packets?).and_return(true)
@@ -104,7 +104,7 @@ describe RTP::Receiver do
       specify { subject.should be_running }
     end
 
-    context "listening, not writing packets" do
+    context 'listening, not writing packets' do
       before do
         subject.stub(:listening?).and_return(true)
         subject.stub(:writing_packets?).and_return(false)
@@ -113,7 +113,7 @@ describe RTP::Receiver do
       specify { subject.should_not be_running }
     end
 
-    context "not listening, writing packets" do
+    context 'not listening, writing packets' do
       before do
         subject.stub(:listening?).and_return(false)
         subject.stub(:writing_packets?).and_return(true)
@@ -122,7 +122,7 @@ describe RTP::Receiver do
       specify { subject.should_not be_running }
     end
 
-    context "not listening, not writing packets" do
+    context 'not listening, not writing packets' do
       before do
         subject.stub(:listening?).and_return(false)
         subject.stub(:writing_packets?).and_return(false)
@@ -374,36 +374,36 @@ describe RTP::Receiver do
     end
   end
 
-  describe "#stop_packet_writer" do
-    let(:packet_writer) { double "@packet_writer" }
+  describe '#stop_packet_writer' do
+    let(:packet_writer) { double '@packet_writer' }
     before { subject.instance_variable_set(:@packet_writer, packet_writer) }
 
-    it "closes the @capture_file" do
+    it 'closes the @capture_file' do
       subject.stub(:writing_packets?)
       subject.instance_variable_get(:@capture_file).should_receive(:close)
       subject.send(:stop_packet_writer)
     end
 
-    context "writing packets" do
+    context 'writing packets' do
       before do
         subject.should_receive(:writing_packets?).and_return true
         subject.should_receive(:writing_packets?).and_return false
       end
 
-      it "kills the @packet_writer and sets it to nil" do
+      it 'kills the @packet_writer and sets it to nil' do
         subject.instance_variable_get(:@packet_writer).should_receive(:kill)
         subject.send(:stop_packet_writer)
         subject.instance_variable_get(:@packet_writer).should be_nil
       end
     end
 
-    context "not writing packets" do
+    context 'not writing packets' do
       before do
         subject.should_receive(:writing_packets?).and_return false
         subject.should_receive(:writing_packets?).and_return false
       end
 
-      it "sets @packet_writer it to nil" do
+      it 'sets @packet_writer it to nil' do
         subject.instance_variable_get(:@packet_writer).should_not_receive(:kill)
         subject.send(:stop_packet_writer)
         subject.instance_variable_get(:@packet_writer).should be_nil
