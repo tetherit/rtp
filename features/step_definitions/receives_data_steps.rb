@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 Given /^an RTP::Receiver is runing$/ do
   @receiver = RTP::Receiver.new
 end

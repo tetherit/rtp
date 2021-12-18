@@ -1,11 +1,8 @@
-require 'log_switch'
+# frozen_string_literal: true
+
+require 'semantic_logger'
 
 module RTP
   class Logger
-    extend LogSwitch
   end
 end
-
-RTP::Logger.log_class_name = true
-RTP::Logger.log = false
-

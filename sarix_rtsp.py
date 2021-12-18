@@ -120,7 +120,7 @@ class RequestHandler(SocketServer.BaseRequestHandler):
             elif (nal_unit_type >= 1) and (nal_unit_type <= 23):
                 self.video_file.write('\x00\x00\x00\x01' + video_data)
             else:
-                print "ERROR: UNHANDLED H264 FRAME TYPE !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+                print 'ERROR: UNHANDLED H264 FRAME TYPE !!!!!!!!!!!!!!!!!!!!!!'
         except:
             traceback.print_exc()
             time.sleep(5)

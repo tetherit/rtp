@@ -1,23 +1,23 @@
+# frozen_string_literal: true
+
 require 'ipaddr'
 require 'socket'
 require 'tempfile'
 require 'timeout'
+require 'semantic_logger'
 
-require_relative 'logger'
 require_relative 'error'
 require_relative 'packet'
 
-
 module RTP
-
   # Objects of this type receive RTP data over a socket and either save them to
   # a file, or yield the packets to a given block.  This is useful with other
   # protocols, like RTSP.
   class Receiver
-    include LogSwitch::Mixin
+    include SemanticLogger::Loggable
 
     # Name of the file the data will be captured to unless #rtp_file is set.
-    DEFAULT_CAPFILE_NAME = "rtp_capture.raw"
+    DEFAULT_CAPFILE_NAME = 'rtp_capture.raw'
 
     # Maximum number of bytes to receive on the socket.
     MAX_BYTES_TO_RECEIVE = 1500
@@ -67,7 +67,7 @@ module RTP
 
       at_exit do
         unless @capture_file.closed?
-          log "Closing and deleting capture capture file..."
+          logger.info 'Closing and deleting capture capture file...'
           @capture_file.close
           @capture_file.unlink
         end
@@ -104,7 +104,8 @@ module RTP
     # @return [Boolean] true if started successfully.
     def start(&block)
       return false if running?
-      log "Starting receiving on port #{@rtp_port}..."
+
+      logger.info "Starting receiving on port #{@rtp_port}..."
 
       @packet_writer = start_packet_writer(&block)
       @packet_writer.abort_on_exception = true
@@ -121,27 +122,27 @@ module RTP
     #
     # @return [Boolean] true if stopped successfully.
     def stop
-      return false if !running?
+      return false unless running?
 
-      log "Stopping #{self.class} on port #{@rtp_port}..."
+      logger.info "Stopping #{self.class} on port #{@rtp_port}..."
       stop_listener
-      log "listening? #{listening?}"
+      logger.info "listening? #{listening?}"
 
       stop_packet_writer
-      log "writing packets? #{writing_packets?}"
-      log "running? #{running?}"
+      logger.info "writing packets? #{writing_packets?}"
+      logger.info "running? #{running?}"
 
       !running?
     end
 
     # @return [Boolean] true if the listener thread is running; false if not.
     def listening?
-      !@listener.nil? ? @listener.alive? : false
+      @listener.nil? ? false : @listener.alive?
     end
 
     # @return [Boolean] true if ready to write packets to file.
     def writing_packets?
-      !@packet_writer.nil? ? @packet_writer.alive? : false
+      @packet_writer.nil? ? false : @packet_writer.alive?
     end
 
     # @return [Boolean] true if the Receiver is listening and writing packets.
@@ -215,7 +216,7 @@ module RTP
     # @return [UDPSocket, TCPServer]
     # @raise [RTP::Error] If +protocol+ was not set to +:UDP+ or +:TCP+.
     def init_socket(protocol, port, ip_address)
-      log "Setting up #{protocol} socket on #{ip_address}:#{port}"
+      logger.info "Setting up #{protocol} socket on #{ip_address}:#{port}"
 
       if protocol == :UDP
         socket = UDPSocket.open
@@ -224,14 +225,14 @@ module RTP
         socket = TCPServer.new(ip_address, port)
       else
         raise RTP::Error,
-          "Unknown protocol requested: #{protocol}.  Options are :TCP or :UDP"
+              "Unknown protocol requested: #{protocol}.  Options are :TCP or :UDP"
       end
 
-      set_socket_time_options(socket)
+      socket_time_options(socket)
       setup_multicast_socket(socket, ip_address) if multicast?
 
       @rtp_port = port
-      log "#{protocol} server setup to receive on port #{@rtp_port}"
+      logger.info "#{protocol} server setup to receive on port #{@rtp_port}"
 
       socket
     end
@@ -246,16 +247,14 @@ module RTP
 
       Thread.start(socket) do
         loop do
-          begin
-            msg = socket.recvmsg_nonblock(MAX_BYTES_TO_RECEIVE)
-            data = msg.first
-            log "Received data at size: #{data.size}"
+          msg = socket.recvmsg_nonblock(MAX_BYTES_TO_RECEIVE)
+          data = msg.first
+          logger.info "Received data at size: #{data.size}"
 
-            log "RTP timestamp from socket info: #{msg.last.timestamp}"
-            @packets << [data, msg.last.timestamp]
-          rescue Errno::EAGAIN
-            # Waiting for data on the socket...
-          end
+          logger.info "RTP timestamp from socket info: #{msg.last.timestamp}"
+          @packets << [data, msg.last.timestamp]
+        rescue Errno::EAGAIN
+          # Waiting for data on the socket...
         end
       end
     end
@@ -264,11 +263,11 @@ module RTP
     #
     # @return [Boolean] true if it stopped listening.
     def stop_listener
-      log "Stopping listener..."
-      @socket.close if @socket
+      logger.info 'Stopping listener...'
+      @socket&.close
       @listener.kill if listening?
       @listener = nil
-      log "Listener stopped."
+      logger.info 'Listener stopped.'
 
       !listening?
     end
@@ -278,7 +277,7 @@ module RTP
     #
     # @return [Boolean] true if it stopped the packet writer.
     def stop_packet_writer
-      log "Stopping packet writer..."
+      logger.info 'Stopping packet writer...'
       wait_for = 10
 
       begin
@@ -286,13 +285,13 @@ module RTP
           sleep 0.2 until @packets.empty?
         end
       rescue Timeout::Error
-        log "Packet buffer not empty after #{wait_for} seconds.  Trying to stop listener..."
+        logger.info "Packet buffer not empty after #{wait_for} seconds.  Trying to stop listener..."
         stop_listener
       end
 
       @packet_writer.kill if writing_packets?
       @packet_writer = nil
-      log "Packet writer stopped."
+      logger.info 'Packet writer stopped.'
 
       @capture_file.close
 
@@ -302,9 +301,9 @@ module RTP
     # Sets SO_TIMESTAMP socket option to true.  Sets SO_RCVTIMEO to 2.
     #
     # @param [Socket] socket The Socket to set options on.
-    def set_socket_time_options(socket)
+    def socket_time_options(socket)
       socket.setsockopt(Socket::SOL_SOCKET, Socket::SO_TIMESTAMP, true)
-      optval = [0, 1].pack("l_2")
+      optval = [0, 1].pack('l_2')
       socket.setsockopt(Socket::SOL_SOCKET, Socket::SO_RCVTIMEO, optval)
     end
 
@@ -314,8 +313,9 @@ module RTP
     # @param [Socket] socket The socket to set the options on.
     # @param [String] multicast_address The IP address to set the options on.
     def setup_multicast_socket(socket, multicast_address)
-      set_membership(socket,
-        IPAddr.new(multicast_address).hton + IPAddr.new('0.0.0.0').hton)
+      set_membership(
+        socket, IPAddr.new(multicast_address).hton + IPAddr.new('0.0.0.0').hton
+      )
       set_multicast_ttl(socket, MULTICAST_TTL)
       set_ttl(socket, MULTICAST_TTL)
     end

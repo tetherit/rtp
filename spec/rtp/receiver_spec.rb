@@ -1,8 +1,9 @@
+# frozen_string_literal: true
+
 require 'spec_helper'
 require 'rtp/receiver'
 
 Thread.abort_on_exception = true
-RTP::Logger.log = false
 
 describe RTP::Receiver do
   describe "#initialize" do
@@ -63,7 +64,7 @@ describe RTP::Receiver do
 
     context "not running" do
       before { subject.stub(:running?).and_return false }
-      specify { subject.stop.should be_false }
+      specify { subject.stop.should be_falsey }
     end
   end
 
@@ -225,7 +226,7 @@ describe RTP::Receiver do
     end
 
     context "packet writer not running" do
-      let(:packet_writer) { double "@packet_writer" }
+      let(:packet_writer) { double '@packet_writer' }
 
       before do
         subject.instance_variable_set(:@packet_writer, packet_writer)
@@ -233,7 +234,6 @@ describe RTP::Receiver do
 
       specify { subject.send(:start_packet_writer).should == packet_writer }
     end
-
   end
 
   describe "#init_socket" do
@@ -250,24 +250,24 @@ describe RTP::Receiver do
         UDPSocket.should_receive(:open).and_return udp_server
       end
 
-      it "returns a UDPSocket" do
+      it 'returns a UDPSocket' do
         udp_server.should_receive(:bind).with('0.0.0.0', 1234)
         subject.send(:init_socket, :UDP, 1234, '0.0.0.0').should == udp_server
       end
 
-      it "sets socket options to get the timestamp" do
+      it 'sets socket options to get the timestamp' do
         udp_server.stub(:bind)
-        subject.should_receive(:set_socket_time_options).with(udp_server)
+        subject.should_receive(:socket_time_options).with(udp_server)
         subject.send(:init_socket, :UDP, 1234, '0.0.0.0')
       end
     end
 
-    context "TCP" do
+    context 'TCP' do
       before do
         TCPServer.should_receive(:new).with('0.0.0.0', 1234).and_return tcp_server
       end
 
-      it "returns a TCPServer" do
+      it 'returns a TCPServer' do
         subject.send(:init_socket, :TCP, 1234, '0.0.0.0').should == tcp_server
       end
     end

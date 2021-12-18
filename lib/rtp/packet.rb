@@ -1,7 +1,8 @@
+# frozen_string_literal: true
+
 require 'bindata'
 
 module RTP
-
   # Decodes a single RTP packet into a Hash, so the packet can inspected and
   # used accordingly.  Form more info on types, see
   # {bindata}[http://bindata.rubyforge.org].
