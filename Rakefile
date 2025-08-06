@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require 'bundler/gem_tasks'
 require 'rspec/core/rake_task'
 require 'yard'
@@ -5,9 +7,8 @@ require 'yard'
 # Load all extra rake task definitions
 Dir["#{File.dirname(__FILE__)}/tasks/*.rake"].each { |ext| load ext }
 
-
 YARD::Rake::YardocTask.new do |t|
-  t.files = %w(lib/**/*.rb - *.rdoc)
+  t.files = %w[lib/**/*.rb - *.rdoc]
   t.options = %w[--private --protected --verbose]
 end
 

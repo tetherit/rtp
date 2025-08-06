@@ -1,11 +1,13 @@
+# frozen_string_literal: true
+
 require 'simplecov'
 
 SimpleCov.start do
-  add_group "Lib", "lib" do |src_file|
+  add_group 'Lib', 'lib' do |src_file|
     src_file.filename !~ /spec/
   end
 
-  add_group "Specs", "spec"
+  add_group 'Specs', 'spec'
 end
 
-$:.unshift(File.dirname(__FILE__) + '/../lib')
+$LOAD_PATH.unshift("#{File.dirname(__FILE__)}/../lib")

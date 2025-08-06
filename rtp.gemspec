@@ -18,7 +18,6 @@ Gem::Specification.new do |s|
   s.required_ruby_version = '>= 3.0.2'
   s.files = Dir.glob('{lib,spec,tasks}/**/*') + Dir.glob('*.rdoc') +
             %w[.gemtest Gemfile rtp.gemspec Rakefile]
-  s.test_files = Dir.glob('spec/**/*')
   s.require_paths = 'lib'
 
   s.add_dependency 'bindata', '>= 2.4.10'
