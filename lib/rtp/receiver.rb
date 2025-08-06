@@ -56,21 +56,19 @@ module RTP
     #   be stripped from packets before they're written to the capture file.
     # @option options [File] :capture_file The file object to capture the RTP
     #   data to.
-    def initialize(options={})
-      @rtp_port           = options[:rtp_port]           || 6970
+    def initialize(options = {})
+      @rtp_port           = options[:rtp_port] || 6970
       @rtcp_port          = @rtp_port + 1
       @transport_protocol = options[:transport_protocol] || :UDP
       @ip_address         = options[:ip_address]         || '0.0.0.0'
       @strip_headers      = options[:strip_headers]      || false
       @capture_file       = options[:capture_file]       ||
-        Tempfile.new(DEFAULT_CAPFILE_NAME)
+                            Tempfile.new(DEFAULT_CAPFILE_NAME)
+      @owns_capture_file  = options[:capture_file].nil?
 
+      # Always set up cleanup at process exit for proper file descriptor hygiene
       at_exit do
-        unless @capture_file.closed?
-          logger.info 'Closing and deleting capture capture file...'
-          @capture_file.close
-          @capture_file.unlink
-        end
+        cleanup_capture_file
       end
 
       @socket = nil
@@ -102,12 +100,12 @@ module RTP
     #   socket.
     #
     # @return [Boolean] true if started successfully.
-    def start(&block)
+    def start(&)
       return false if running?
 
       logger.info "Starting receiving on port #{@rtp_port}..."
 
-      @packet_writer = start_packet_writer(&block)
+      @packet_writer = start_packet_writer(&)
       @packet_writer.abort_on_exception = true
 
       @socket = init_socket(@transport_protocol, @rtp_port, @ip_address)
@@ -131,6 +129,9 @@ module RTP
       stop_packet_writer
       logger.info "writing packets? #{writing_packets?}"
       logger.info "running? #{running?}"
+
+      # Ensure capture file is properly closed when stopping
+      cleanup_capture_file
 
       !running?
     end
@@ -159,7 +160,7 @@ module RTP
     # @return [Boolean] true if +ip_address+ is a multicast address or not.
     def multicast?
       first_octet = @ip_address.match(/^(\d\d\d?)/).to_s.to_i
-      first_octet >= 224 && first_octet <= 239
+      first_octet.between?(224, 239)
     end
 
     # @return [Boolean] true if +ip_address+ is a unicast address or not.
@@ -264,9 +265,16 @@ module RTP
     # @return [Boolean] true if it stopped listening.
     def stop_listener
       logger.info 'Stopping listener...'
-      @socket&.close
+      if @socket && !@socket.closed?
+        begin
+          @socket.close
+        rescue StandardError => e
+          logger.error "Error closing socket: #{e.message}"
+        end
+      end
       @listener.kill if listening?
       @listener = nil
+      @socket = nil
       logger.info 'Listener stopped.'
 
       !listening?
@@ -281,7 +289,7 @@ module RTP
       wait_for = 10
 
       begin
-        timeout(wait_for) do
+        Timeout.timeout(wait_for) do
           sleep 0.2 until @packets.empty?
         end
       rescue Timeout::Error
@@ -293,7 +301,14 @@ module RTP
       @packet_writer = nil
       logger.info 'Packet writer stopped.'
 
-      @capture_file.close
+      # Always close capture file (original behavior) but only unlink if we own it
+      if @capture_file && !@capture_file.closed?
+        begin
+          @capture_file.close
+        rescue StandardError => e
+          logger.error "Error closing capture file in stop_packet_writer: #{e.message}", e
+        end
+      end
 
       !writing_packets?
     end
@@ -337,6 +352,28 @@ module RTP
     # @param [Fixnum] ttl TTL to set IP_TTL to.
     def set_ttl(socket, ttl)
       socket.setsockopt(Socket::IPPROTO_IP, Socket::IP_TTL, [ttl].pack('i'))
+    end
+
+    # Properly cleans up the capture file.
+    # Always closes files when done, only unlinks Tempfiles we created.
+    def cleanup_capture_file
+      return unless @capture_file
+      
+      begin
+        # Always close files when we're done with them
+        unless @capture_file.closed?
+          logger.info 'Closing capture file...'
+          @capture_file.close
+        end
+        
+        # Only unlink (delete) files we own (Tempfiles we created)
+        if @owns_capture_file && @capture_file.respond_to?(:unlink)
+          logger.info 'Deleting temporary capture file...'
+          @capture_file.unlink
+        end
+      rescue StandardError => e
+        logger.error "Error cleaning up capture file: #{e.message}", e
+      end
     end
   end
 end
