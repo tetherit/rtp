@@ -66,16 +66,32 @@ module RTP
                             Tempfile.new(DEFAULT_CAPFILE_NAME)
       @owns_capture_file  = options[:capture_file].nil?
 
-      # Always set up cleanup at process exit for proper file descriptor hygiene
-      at_exit do
-        cleanup_capture_file
-      end
+      # Use ObjectSpace finalizer instead of at_exit to clean up when object is garbage collected
+      # This prevents file descriptor leaks when Receiver objects are not explicitly stopped
+      ObjectSpace.define_finalizer(self, self.class.finalize(@capture_file, @owns_capture_file))
 
       @socket = nil
       @listener = nil
       @packet_writer = nil
       @packets = Queue.new
       @packet_timestamps = []
+    end
+
+    # Class method to create a finalizer proc that doesn't hold a reference to self
+    def self.finalize(capture_file, owns_capture_file)
+      proc do
+        begin
+          if capture_file && !capture_file.closed?
+            capture_file.close
+          end
+
+          if owns_capture_file && capture_file&.respond_to?(:unlink)
+            capture_file.unlink
+          end
+        rescue StandardError
+          # Suppress errors during finalization
+        end
+      end
     end
 
     # Starts the packet writer (buffer) and listener.
